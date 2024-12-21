@@ -1,7 +1,13 @@
 {% extends "base" %}
 
 {% block content %}
-    <h1>Traefik GUI</h1>
+    <h1>Dashboard</h1>
+
+    {% if flash %}
+        <div class="card field-{{flash.0}}-msg">
+            {{ flash.1 }}
+        </div>
+    {% endif %}
 
     <div class="card">
         <h2>HTTP</h2>
@@ -20,6 +26,16 @@
         </div>
         <div>
             <a class="btn" href="/tls">Manage TLS routes</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Config File</h2>
+        <form action="/redeploy" method="post">
+            <input type="submit" value="Redeploy" class="btn">
+        </form>
+        <div>
+            <pre>{{ config }}</pre>
         </div>
     </div>
 

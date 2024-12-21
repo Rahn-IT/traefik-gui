@@ -6,13 +6,16 @@ volumes:
 services:
   gui:
     build: .
-    image: ghcr.io/rahn-it/traefik-gui
+    image: ghcr.io/rahn-it/traefik-gui2
     restart: unless-stopped
     ports:
-      - 3000:3000
+      - 8000:8000
+    environment:
+      RUST_BACKTRACE: 1
     volumes:
-      - gui-data:/app/data
+      - gui-data:/app/db
       - config:/app/traefik
+      # - ./traefik:/app/traefik
 
   
   traefik:
@@ -39,3 +42,4 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # Additional configurations created by the ui
       - config:/config:ro
+      # - ./traefik:/config:ro

@@ -7,7 +7,12 @@ use rocket::{
 use rocket_dyn_templates::Template;
 use serde::Serialize;
 
-use crate::{schema::http_routes, DbConn};
+use crate::{
+    export_traefik_config,
+    schema::http_routes,
+    traefik::{HttpConfig, HttpLoadBalancer, HttpRouter, HttpServer, HttpService},
+    DbConn,
+};
 
 #[derive(Serialize, Queryable, Insertable, AsChangeset, FromForm, Clone, Debug)]
 #[serde(crate = "rocket::serde")]
@@ -71,6 +76,49 @@ impl HttpRoute {
         })
         .await
     }
+
+    pub async fn generate_traefik_config(conn: &DbConn) -> HttpConfig {
+        let mut config = HttpConfig::new();
+
+        let routes = HttpRoute::all(conn).await.unwrap();
+
+        for route in routes {
+            if route.enabled {
+                let router_name = format!("gui-http-{}-{}", route.id.unwrap(), route.name);
+
+                let mut host_rule = if route.host_regex {
+                    format!("HostRegexp(`{}`)", route.host)
+                } else {
+                    format!("Host(`{}`)", route.host)
+                };
+
+                if let Some(prefix) = route.prefix {
+                    host_rule = format!("({} && PathPrefix(`{}`))", host_rule, prefix);
+                }
+
+                config.routers.insert(
+                    router_name.clone(),
+                    HttpRouter {
+                        priority: route.priority,
+                        service: router_name.clone(),
+                        rule: host_rule,
+                        middlewares: Vec::new(),
+                    },
+                );
+
+                config.services.insert(
+                    router_name,
+                    HttpService {
+                        load_balancer: HttpLoadBalancer {
+                            servers: vec![{ HttpServer { url: route.target } }],
+                        },
+                    },
+                );
+            }
+        }
+
+        config
+    }
 }
 
 #[derive(Serialize)]
@@ -115,6 +163,7 @@ pub async fn create(route_form: Form<HttpRoute>, conn: DbConn) -> Flash<Redirect
     if let Err(e) = HttpRoute::insert(route, &conn).await {
         Flash::error(Redirect::to("/http"), e.to_string())
     } else {
+        export_traefik_config(&conn).await;
         Flash::success(Redirect::to("/http"), "Route created")
     }
 }
@@ -127,6 +176,7 @@ pub async fn update(id: i32, route_form: Form<HttpRoute>, conn: DbConn) -> Flash
     if let Err(e) = HttpRoute::update(id, route, &conn).await {
         Flash::error(Redirect::to("/http"), e.to_string())
     } else {
+        export_traefik_config(&conn).await;
         Flash::success(Redirect::to("/http"), "Route updated")
     }
 }
@@ -137,6 +187,7 @@ pub async fn enable(id: i32, enabled: Form<bool>, conn: DbConn) -> Flash<Redirec
     if let Err(e) = HttpRoute::enable(id, enabled, &conn).await {
         Flash::error(Redirect::to("/http"), e.to_string())
     } else {
+        export_traefik_config(&conn).await;
         Flash::success(Redirect::to("/http"), "Route updated")
     }
 }
@@ -147,6 +198,7 @@ pub async fn delete(id: i32, confirm: Form<bool>, conn: DbConn) -> Flash<Redirec
         if let Err(e) = HttpRoute::delete(id, &conn).await {
             Flash::error(Redirect::to("/http"), e.to_string())
         } else {
+            export_traefik_config(&conn).await;
             Flash::success(Redirect::to("/http"), "Route deleted")
         }
     } else {

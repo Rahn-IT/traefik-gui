@@ -86,7 +86,7 @@
                         <td>{{ route.name }}</td>
                         <td>{{ route.priority }}</td>
                         <td>{{ route.host }}</td>
-                        <td>{{ route.host_regex }}</td>
+                        <td>{% if route.host_regex %}✅{% else %}❌{% endif %}</td>
                         <td>{{ route.prefix }}</td>
                         <td>{{ route.target }}</td>
                         <td>

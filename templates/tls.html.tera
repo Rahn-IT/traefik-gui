@@ -66,9 +66,9 @@
                         <td><input type="number" id="priority" name="priority" min="0" max="999" value="{{ route.priority }}"></td>
                         <td><input type="text" id="host" name="host" value="{{ route.host }}" required></td>
                         <td><input type="checkbox" id="host_regex" name="host_regex" class="toggle" {% if route.host_regex %}checked{% endif %}></td>
+                        <td><input type="text" id="target" name="target" value="{{ route.target }}" required></td>
                         <td><input type="number" id="acme_http_passthrough" name="acme_http_passthrough" min="0" max="65535" value="{{ route.acme_http_passthrough }}"></td>
                         <td><input type="checkbox" id="https_redirect" name="https_redirect" class="toggle" {% if route.https_redirect %}checked{% endif %}></td>
-                        <td><input type="text" id="target" name="target" value="{{ route.target }}" required></td>
                         <td>
                             <div class="actions">
                                 <div>
@@ -90,7 +90,7 @@
                         <td>{{ route.name }}</td>
                         <td>{{ route.priority }}</td>
                         <td>{{ route.host }}</td>
-                        <td>{{ route.host_regex }}</td>
+                        <td>{% if route.host_regex %}✅{% else %}❌{% endif %}</td>
                         <td>{{ route.target }}</td>
                         <td>
                             {% if route.acme_http_passthrough %}

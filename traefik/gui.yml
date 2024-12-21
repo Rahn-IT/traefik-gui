@@ -1,0 +1,31 @@
+http:
+  routers:
+    gui-tls-1-Amp-acme:
+      rule: (Host(`play.it-woelfchen.de`) && PathPrefix(`/.well-known/acme-challenge/`))
+      service: gui-tls-1-Amp-acme
+    gui-tls-1-Amp-redirect:
+      rule: Host(`play.it-woelfchen.de`)
+      service: noop@internal
+      middlewares:
+      - https-redirect
+  services:
+    gui-tls-1-Amp-acme:
+      loadBalancer:
+        servers:
+        - url: http://192.168.46.155:80
+  middlewares:
+    https-redirect:
+      redirectScheme:
+        scheme: https
+tcp:
+  routers:
+    gui-tls-1-Amp:
+      rule: HostSNI(`play.it-woelfchen.de`)
+      service: gui-tls-1-Amp
+      tls:
+        passthrough: true
+  services:
+    gui-tls-1-Amp:
+      loadBalancer:
+        servers:
+        - address: 192.168.46.155:443
