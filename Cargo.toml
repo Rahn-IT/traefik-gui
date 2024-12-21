@@ -1,5 +1,5 @@
 [package]
-name = "traefik-gui-2"
+name = "traefik-gui"
 version = "0.1.0"
 edition = "2021"
 
