@@ -1,0 +1,41 @@
+http:
+  routers:
+    gui-http-test-router:
+      rule: Host(`test`)
+      service: gui-http-test-service
+      priority: null
+    gui-http-test2-router:
+      rule: Host(`test2`)
+      service: gui-http-test2-service
+      priority: 50
+  services:
+    gui-http-test-service:
+      loadBalancer:
+        servers:
+          - url: http://test
+    gui-http-test2-service:
+      loadBalancer:
+        servers:
+          - url: http://test2
+tcp:
+  routers:
+    gui-tls-test-router:
+      rule: HostSNI(`test`)
+      service: gui-tls-test-service
+      tls:
+        passthrough: true
+    gui-tls-test2-router:
+      rule: HostSNI(`test2`)
+      service: gui-tls-test2-service
+      tls:
+        passthrough: true
+      priority: 50
+  services:
+    gui-tls-test-service:
+      loadBalancer:
+        servers:
+          - address: test
+    gui-tls-test2-service:
+      loadBalancer:
+        servers:
+          - address: test2

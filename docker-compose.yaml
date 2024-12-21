@@ -1,0 +1,41 @@
+volumes:
+  certs:
+  gui-data:
+  config:
+
+services:
+  gui:
+    build: .
+    image: ghcr.io/rahn-it/traefik-gui
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    volumes:
+      - gui-data:/app/data
+      - config:/app/traefik
+
+  
+  traefik:
+    image: traefik:latest
+    restart: unless-stopped
+    command:
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=traefik"
+      - "--providers.file.directory=/config"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--entryPoints.web.address=:80"
+      - "--entryPoints.websecure.address=:443"
+    ports:
+      - 443:443
+      - 80:80
+      - 8080:8080
+    volumes:
+      - certs:/etc/traefik/acme
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Additional configurations created by the ui
+      - config:/config:ro

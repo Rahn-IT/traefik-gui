@@ -1,0 +1,12 @@
+
+<nav class="navbar bg-base-200">
+    <div class="navbar-start">
+        <ul class="menu menu-horizontal">
+            <li><a href="/">Home</a></li>
+            <li><a href="/http">HTTP</a></li>
+            <li><a href="/tls">TLS</a></li>
+        </ul>
+    </div>
+    <div class="navbar-end">
+    </div>
+</nav>

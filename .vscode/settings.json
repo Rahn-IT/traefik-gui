@@ -1,0 +1,6 @@
+{
+    "editor.formatOnSave": true,
+    "files.associations": {
+        "*.html.tera": "django-html"
+    }
+}

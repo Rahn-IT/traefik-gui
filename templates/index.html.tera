@@ -1,0 +1,26 @@
+{% extends "base" %}
+
+{% block content %}
+    <h1>Traefik GUI</h1>
+
+    <div class="card">
+        <h2>HTTP</h2>
+        <div>
+            {{ http_count }} active HTTP route{% if http_count != 1 %}s{% endif %}
+        </div>
+        <div>
+            <a class="btn" href="/http">Manage HTTP routes</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>TLS</h2>
+        <div>
+            {{ tls_count }} active TLS route{% if tls_count != 1 %}s{% endif %}
+        </div>
+        <div>
+            <a class="btn" href="/tls">Manage TLS routes</a>
+        </div>
+    </div>
+
+{% endblock content %}

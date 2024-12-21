@@ -1,0 +1,132 @@
+{% extends "base" %}
+
+{% block content %}
+    <h1>TLS Routes</h1>
+
+        {% if flash %}
+            <div class="card field-{{flash.0}}-msg">
+               {{ flash.1 }}
+            </div>
+        {% endif %}
+
+    <div class="card">
+        <form action="/tls" method="post">
+            <input type="hidden" name="enabled" value="true">
+
+            <table>
+                <tr>
+                    <th><label for="name">Name</label></th>
+                    <th><label for="priority">Priority</label></th>
+                    <th><label for="host">Host</label></th>
+                    <th><label for="host_regex">Host is regex</label></th>
+                    <th><label for="target">Target</label></th>
+                    <th><label for="acme_http_passthrough">ACME HTTP Passthrough Port</label></th>
+                    <th><label for="https_redirect">HTTPS Redirect</label></th>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td><input type="text" id="name" name="name" required></td>
+                    <td><input type="number" id="priority" name="priority" min="0" max="999" value=""></td>
+                    <td><input type="text" id="host" name="host"required></td>
+                    <td><input type="checkbox" id="host_regex" name="host_regex" class="toggle"></td>
+                    <td><input type="text" id="target" name="target"  required></td>
+                    <td><input type="number" id="priority" name="priority" min="1" max="65535" value=""></td>
+                    <td><input type="checkbox" id="https_redirect" name="https_redirect" class="toggle"></td>
+                    <td>
+                        <input class="btn" type="submit" value="Add">
+                    </td>
+                </tr>
+            </table>
+
+        </form>
+    </div>
+
+    <div class="card">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Enabled</th>
+                    <th>Name</th>
+                    <th>Priority</th>
+                    <th>Host</th>
+                    <th>Host is regex</th>
+                    <th>Target</th>
+                    <th>ACME HTTP Passthrough Port</th>
+                    <th>HTTPS Redirect</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for route in routes %}
+                    <tr>
+                    {% if route.id == edit %}
+                    <form action="/tls/{{ route.id }}" method="post">
+                        <td><input type="checkbox" id="enabled" name="enabled" class="toggle" {% if route.enabled %}checked{% endif %}></td>
+                        <td><input type="text" id="name" name="name" value="{{ route.name }}" required></td>
+                        <td><input type="number" id="priority" name="priority" min="0" max="999" value="{{ route.priority }}"></td>
+                        <td><input type="text" id="host" name="host" value="{{ route.host }}" required></td>
+                        <td><input type="checkbox" id="host_regex" name="host_regex" class="toggle" {% if route.host_regex %}checked{% endif %}></td>
+                        <td><input type="number" id="acme_http_passthrough" name="acme_http_passthrough" min="0" max="65535" value="{{ route.acme_http_passthrough }}"></td>
+                        <td><input type="checkbox" id="https_redirect" name="https_redirect" class="toggle" {% if route.https_redirect %}checked{% endif %}></td>
+                        <td><input type="text" id="target" name="target" value="{{ route.target }}" required></td>
+                        <td>
+                            <div class="actions">
+                                <div>
+                                    <a href="/tls">❌</a>
+                                    <span class="tooltip">Cancel</span>
+                                </div>
+                                <div>
+                                    <input type="submit" value="💾">
+                                    <span class="tooltip">Save</span>
+                                </div>
+                            </div>
+                        </td>
+                    </form>
+
+                    {% else %}
+                        <td>
+                            {% if route.enabled %}✅{% else %}❌{% endif %}
+                        </td>
+                        <td>{{ route.name }}</td>
+                        <td>{{ route.priority }}</td>
+                        <td>{{ route.host }}</td>
+                        <td>{{ route.host_regex }}</td>
+                        <td>{{ route.target }}</td>
+                        <td>
+                            {% if route.acme_http_passthrough %}
+                                {{ route.acme_http_passthrough }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{% if route.https_redirect %}✅{% else %}❌{% endif %}</td>
+                        <td>
+                            <div class="actions">
+                                <div>
+                                    <a href="/tls?edit={{ route.id }}">✏️</a>
+                                    <span class="tooltip">Edit</span>
+                                </div>
+                                <form action="/tls/{{ route.id }}/enable" method="post">
+                                    {% if route.enabled %}
+                                        <input type="hidden" name="enabled" value="false">
+                                        <input type="submit" value="💤">
+                                        <span class="tooltip">Disable</span>
+                                    {% else %}
+                                        <input type="hidden" name="enabled" value="true">
+                                        <input type="submit" value="✅">
+                                        <span class="tooltip">Enable</span>
+                                    {% endif %}
+                                </form>
+                                <form action="/tls/{{ route.id }}/delete" method="delete" onsubmit="return confirm('Are you sure you want to delete this route?')">
+                                    <input type="submit" value="🗑️">
+                                    <span class="tooltip">Delete</span>
+                                </form>
+                            </div>
+                        </td>
+                    {% endif %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock content %}

@@ -1,0 +1,232 @@
+html,
+body {
+    margin: 0;
+    padding: 0;
+    background: #444;
+    color: #fff;
+}
+
+nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background-color: #333;
+}
+
+nav ul {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+nav li {
+    margin: 0 1rem;
+}
+
+nav a {
+    color: #fff;
+    text-decoration: none;
+}
+
+nav a:hover {
+    text-decoration: underline;
+}
+
+h1 {
+    font-size: 2rem;
+    padding: 0 2rem;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+tr {
+    border: 1px solid #777;
+}
+
+th,
+td {
+    padding: 0.5rem;
+    text-align: left;
+}
+
+a {
+    text-decoration: none;
+}
+
+.link {
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+
+.card {
+    background-color: #333;
+    padding: 1rem;
+    margin: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.2rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+.field-success-msg {
+    color: #0f0;
+    background-color: #030;
+}
+
+.field-error-msg {
+    color: #f55;
+    background-color: #300;
+}
+
+/* show checkbox as toggle */
+input[type=checkbox] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+}
+
+input[type=checkbox]:focus {
+    outline: 0;
+}
+
+.toggle {
+    height: 32px;
+    width: 52px;
+    border-radius: 16px;
+    display: inline-block;
+    position: relative;
+    margin: 0;
+    border: 2px solid #474755;
+    background: #333;
+    transition: all 0.2s ease;
+}
+
+.toggle:checked {
+    background: #0a0;
+    transition: all 0.2s ease;
+}
+
+.toggle:after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 2px rgba(44, 44, 44, 0.2);
+    transition: all 0.2s cubic-bezier(0.5, 0.1, 0.75, 1.35);
+}
+
+.toggle:checked {
+    border-color: #654FEC;
+}
+
+.toggle:checked:after {
+    transform: translatex(20px);
+}
+
+input[type=text],
+input[type=number] {
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 0.5rem;
+    background-color: inherit;
+    color: #fff;
+    box-shadow: inset 0 0.25rem 0.5rem rgba(0, 0, 0, 0.5);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    transition: border 0.2s ease-in-out;
+}
+
+input[type=text]:focus,
+input[type=number]:focus {
+    outline: none;
+    border: 1px solid #654FEC;
+}
+
+.btn,
+input[type=submit].btn {
+    margin: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    background-color: #654FEC;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    display: block;
+    width: fit-content;
+}
+
+.btn:hover,
+input[type=submit].btn:hover {
+    background-color: #6f5fe9;
+}
+
+input[type=submit],
+button {
+    background: none;
+    color: inherit;
+    border: none;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+    outline: inherit;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.actions>* {
+    position: relative;
+}
+
+.actions .tooltip {
+    position: absolute;
+    visibility: hidden;
+    background-color: #222;
+    padding: 0.5rem;
+    bottom: 120%;
+    left: -50%;
+
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.actions *:hover>.tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+.actions .tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #222 transparent transparent transparent;
+}
+
+.actions input[type=submit],
+.actions a {
+    padding: 0.25rem;
+    font-size: 1.25rem;
+    text-decoration: none;
+}
