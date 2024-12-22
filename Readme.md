@@ -32,6 +32,20 @@ Forward TLS Requests
 
 The GUI currently doesn't validate the data you put in. It'ss just paste the incorrect data in the config file.
 
+# Installation
+
+Traefik-GUI can be installed using docker:
+
+```shell
+docker pull ghcr.io/rahn-it/traefik-gui:nightly
+docker run -d -p 8000:8000 --name traefik-gui -v ./db:/app/db -v ./traefik-configs:/app/traefik ghcr.io/rahn-it/traefik-gui:nightly
+```
+
+I would recommend using docker-compose though.
+
+As a starting point you can use the [docker compose file](docker-compose.yaml) frm this repository.
+Don't forget to enter your email. The example will spin up the traefik dashboard on port 8080
+
 ## Usage
 
 You can access the GUI at port 8000. e.g.: http://localhost:8000
