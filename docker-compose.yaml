@@ -6,7 +6,7 @@ volumes:
 services:
   gui:
     build: .
-    image: ghcr.io/acul009/traefik-gui
+    image: ghcr.io/rahn-it/traefik-gui
     restart: unless-stopped
     ports:
       - 8000:8000
