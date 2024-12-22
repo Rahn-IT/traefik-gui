@@ -32,7 +32,7 @@ To migrate you will need to do the following:
 - delete the old config volume or bind mount for `/app/data`
 - create a new volume or mount for `/app/db` 
 - delete the old generated traefik config file. If it's the only file in the volume, you can just recreate the volume
-- replace the image with the new one: `ghcr.io/rahn-it/traefik-gui:nightly`
+- replace the image with the new one: `ghcr.io/rahn-it/traefik-gui:master`
 - replace the container port. The UI is using port `8000` instead of `3000` now. You may also just replace the internal port and leave the external mapping at `3000`.
 - open the new UI and re-add your routes.
 
@@ -65,8 +65,8 @@ The GUI currently doesn't validate the data you put in. It'ss just paste the inc
 Traefik-GUI can be installed using docker:
 
 ```shell
-docker pull ghcr.io/rahn-it/traefik-gui:nightly
-docker run -d -p 8000:8000 --name traefik-gui -v ./db:/app/db -v ./traefik-configs:/app/traefik ghcr.io/rahn-it/traefik-gui:nightly
+docker pull ghcr.io/rahn-it/traefik-gui:master
+docker run -d -p 8000:8000 --name traefik-gui -v ./db:/app/db -v ./traefik-configs:/app/traefik ghcr.io/rahn-it/traefik-gui:master
 ```
 
 I would recommend using docker-compose though.
