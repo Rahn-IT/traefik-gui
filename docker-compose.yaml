@@ -6,7 +6,7 @@ volumes:
 services:
   gui:
     build: .
-    image: ghcr.io/rahn-it/traefik-gui
+    image: ghcr.io/rahn-it/traefik-gui:nightly
     restart: unless-stopped
     ports:
       - 8000:8000
