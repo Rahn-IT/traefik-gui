@@ -31,7 +31,9 @@ services:
       - "--api.dashboard=true"
       - "--api.insecure=true"
       - "--entryPoints.web.address=:80"
+      - "--entryPoints.web.allowACMEByPass=true"
       - "--entryPoints.websecure.address=:443"
+      - "--entryPoints.websecure.allowACMEByPass=true"
     ports:
       - 443:443
       - 80:80
