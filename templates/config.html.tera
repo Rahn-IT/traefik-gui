@@ -1,0 +1,27 @@
+{% extends "base" %}
+
+{% block content %}
+    <h1>Config</h1>
+
+        {% if flash %}
+            <div class="card field-{{flash.0}}-msg">
+               {{ flash.1 }}
+            </div>
+        {% endif %}
+
+    <div class="card">
+        <form action="/config" method="post">
+            <div>
+                <label for="acme_provider_name">ACME Provider Name</label>
+                <span class="tooltip">If you have configured an ACME provider for traefik, enter the name of the provider here</span>
+            </div>
+            <div>
+                <input type="text" id="acme_provider_name" name="acme_provider_name" value="{{ config.acme_provider_name }}">
+            </div>
+
+            <a class="btn" href="?">Cancel</a>
+            <input class="btn" type="submit" value="Save">
+        </form>
+    </div>
+
+{% endblock content %}

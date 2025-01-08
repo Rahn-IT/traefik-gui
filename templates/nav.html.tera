@@ -4,7 +4,9 @@
         <ul class="menu menu-horizontal">
             <li><a href="/">Home</a></li>
             <li><a href="/http">HTTP</a></li>
+            <li><a href="/https">HTTPS</a></li>
             <li><a href="/tls">TLS</a></li>
+            <li><a href="/config">Config</a></li>
         </ul>
     </div>
     <div class="navbar-end">

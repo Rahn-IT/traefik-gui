@@ -68,6 +68,15 @@ pub struct HttpRouter {
     pub priority: Option<i32>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub middlewares: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls: Option<HttpTls>,
+}
+
+#[derive(Serialize)]
+pub struct HttpTls {
+    #[serde(rename = "certResolver")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cert_resolver: Option<String>,
 }
 
 #[derive(Serialize)]
