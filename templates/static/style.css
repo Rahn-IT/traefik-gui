@@ -166,7 +166,7 @@ input[type=submit].btn {
     line-height: 1.5;
     cursor: pointer;
     transition: all 0.2s ease-in-out;
-    display: block;
+    display: inline-block;
     width: fit-content;
 }
 

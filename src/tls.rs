@@ -3,11 +3,13 @@ use rocket::{
     form::Form,
     request::FlashMessage,
     response::{Flash, Redirect},
+    State,
 };
 use rocket_dyn_templates::Template;
 use serde::Serialize;
 
 use crate::{
+    config::ConfigState,
     export_traefik_config,
     schema::tls_routes,
     traefik::{
@@ -151,6 +153,7 @@ impl TlsRoute {
                             service: acme_router_name.clone(),
                             rule: acme_rule,
                             middlewares: Vec::new(),
+                            tls: None,
                         },
                     );
 
@@ -167,8 +170,7 @@ impl TlsRoute {
                 }
 
                 if route.https_redirect {
-                    let redirect_router_name =
-                        format!("gui-tls-{}-{}-redirect", route.id.unwrap(), route.name);
+                    let redirect_router_name = format!("{}-redirect", router_name);
 
                     config.http.routers.insert(
                         redirect_router_name,
@@ -177,6 +179,7 @@ impl TlsRoute {
                             service: "noop@internal".into(),
                             priority: route.priority,
                             middlewares: vec!["https-redirect".into()],
+                            tls: None,
                         },
                     );
                 }
@@ -221,13 +224,17 @@ pub async fn index(edit: Option<i32>, flash: Option<FlashMessage<'_>>, conn: DbC
 }
 
 #[post("/tls", data = "<route_form>")]
-pub async fn create(route_form: Form<TlsRoute>, conn: DbConn) -> Flash<Redirect> {
+pub async fn create(
+    route_form: Form<TlsRoute>,
+    conn: DbConn,
+    config: &State<ConfigState>,
+) -> Flash<Redirect> {
     let route = route_form.into_inner();
     if let Err(e) = TlsRoute::insert(route, &conn).await {
         error!("DB error creating TLS route: {}", e);
         Flash::error(Redirect::to("/tls"), e.to_string())
     } else {
-        export_traefik_config(&conn).await;
+        export_traefik_config(&conn, &config.config()).await;
         Flash::success(
             Redirect::to("/tls"),
             "Route created successfully".to_string(),
@@ -236,13 +243,18 @@ pub async fn create(route_form: Form<TlsRoute>, conn: DbConn) -> Flash<Redirect>
 }
 
 #[post("/tls/<id>", data = "<route_form>")]
-pub async fn update(id: i32, route_form: Form<TlsRoute>, conn: DbConn) -> Flash<Redirect> {
+pub async fn update(
+    id: i32,
+    route_form: Form<TlsRoute>,
+    conn: DbConn,
+    config: &State<ConfigState>,
+) -> Flash<Redirect> {
     let route = route_form.into_inner();
     if let Err(e) = TlsRoute::update(id, route, &conn).await {
         error!("DB error updating TLS route: {}", e);
         Flash::error(Redirect::to("/tls"), e.to_string())
     } else {
-        export_traefik_config(&conn).await;
+        export_traefik_config(&conn, &config.config()).await;
         Flash::success(
             Redirect::to("/tls"),
             "Route updated successfully".to_string(),
@@ -251,12 +263,17 @@ pub async fn update(id: i32, route_form: Form<TlsRoute>, conn: DbConn) -> Flash<
 }
 
 #[post("/tls/<id>/enable", data = "<enabled>")]
-pub async fn enable(id: i32, enabled: Form<bool>, conn: DbConn) -> Flash<Redirect> {
+pub async fn enable(
+    id: i32,
+    enabled: Form<bool>,
+    conn: DbConn,
+    config: &State<ConfigState>,
+) -> Flash<Redirect> {
     if let Err(e) = TlsRoute::enable(id, enabled.into_inner(), &conn).await {
         error!("DB error updating TLS route: {}", e);
         Flash::error(Redirect::to("/tls"), e.to_string())
     } else {
-        export_traefik_config(&conn).await;
+        export_traefik_config(&conn, &config.config()).await;
         Flash::success(
             Redirect::to("/tls"),
             "Route updated successfully".to_string(),
@@ -265,12 +282,12 @@ pub async fn enable(id: i32, enabled: Form<bool>, conn: DbConn) -> Flash<Redirec
 }
 
 #[post("/tls/<id>/delete")]
-pub async fn delete(id: i32, conn: DbConn) -> Flash<Redirect> {
+pub async fn delete(id: i32, conn: DbConn, config: &State<ConfigState>) -> Flash<Redirect> {
     if let Err(e) = TlsRoute::delete(id, &conn).await {
         error!("DB error deleting TLS route: {}", e);
         Flash::error(Redirect::to("/tls"), e.to_string())
     } else {
-        export_traefik_config(&conn).await;
+        export_traefik_config(&conn, &config.config()).await;
         Flash::success(
             Redirect::to("/tls"),
             "Route deleted successfully".to_string(),
