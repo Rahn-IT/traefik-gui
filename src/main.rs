@@ -87,6 +87,7 @@ async fn run_migrations(rocket: Rocket<Build>) -> Rocket<Build> {
 struct Index {
     flash: Option<(String, String)>,
     http_count: i64,
+    https_count: i64,
     tls_count: i64,
     config: String,
 }
@@ -98,6 +99,7 @@ async fn index(
     config: &State<ConfigState>,
 ) -> Template {
     let http_count = http::HttpRoute::count(&conn).await.unwrap_or(0);
+    let https_count = https::HttpsRoute::count(&conn).await.unwrap_or(0);
     let tls_count = tls::TlsRoute::count(&conn).await.unwrap_or(0);
     let config = generate_traefik_config(&conn, &config.config()).await;
     Template::render(
@@ -105,6 +107,7 @@ async fn index(
         &Index {
             flash: flash.map(FlashMessage::into_inner),
             http_count,
+            https_count,
             tls_count,
             config,
         },
