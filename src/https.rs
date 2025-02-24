@@ -108,7 +108,7 @@ impl HttpsRoute {
                 route.cleanup();
                 let router_name = format!("gui-https-{}-{}", route.id.unwrap(), route.name);
 
-                let mut base_rule = if route.host_regex {
+                let base_rule = if route.host_regex {
                     format!("HostRegexp(`{}`)", route.host)
                 } else {
                     format!("Host(`{}`)", route.host)
