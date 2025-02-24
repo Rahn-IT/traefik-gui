@@ -50,7 +50,15 @@ Currently, Traefik-gui has the following features:
 Forward HTTP-Request:
 - By Hostname
 - By Host regex
-- add additional Path Prefix
+- By additional Path Prefix
+
+Forward HTTPS-Requests:
+- By Hostname
+- By Host regex
+- By additional Path Prefix
+- Set a certificate provider in settings
+- Automatically add HTTP -> HTTPS redirect
+- Automatically add HTTP rule for the `/.well-known/acme-challenge/` endpoints
 
 Forward TLS Requests
 - By Hostname (SNI)
@@ -58,7 +66,7 @@ Forward TLS Requests
 - Automatically add HTTP -> HTTPS redirect
 - Automatically add HTTP rule for the `/.well-known/acme-challenge/` endpoints - when set to port 80 your downstream application can request Let's encrypt certificates via HTTP.
 
-The GUI currently doesn't validate the data you put in. It'ss just paste the incorrect data in the config file.
+The GUI currently doesn't validate the data you put in. It's just pastes the incorrect data in the config file.
 
 # Installation
 
