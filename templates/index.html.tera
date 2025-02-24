@@ -20,6 +20,16 @@
     </div>
 
     <div class="card">
+        <h2>HTTP</h2>
+        <div>
+            {{ https_count }} active HTTPS route{% if https_count != 1 %}s{% endif %}
+        </div>
+        <div>
+            <a class="btn" href="/https">Manage HTTP routes</a>
+        </div>
+    </div>
+
+    <div class="card">
         <h2>TLS</h2>
         <div>
             {{ tls_count }} active TLS route{% if tls_count != 1 %}s{% endif %}
