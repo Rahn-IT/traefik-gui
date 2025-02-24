@@ -23,6 +23,8 @@ mod schema;
 mod tls;
 mod traefik;
 
+const ACME_PATH: &str = "/.well-known/acme-challenge/";
+
 #[database("sqlite_database")]
 pub struct DbConn(diesel::SqliteConnection);
 
