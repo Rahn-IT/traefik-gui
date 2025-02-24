@@ -16,7 +16,7 @@ use crate::{
         HttpLoadBalancer, HttpRouter, HttpServer, HttpService, TcpLoadBalancer, TcpRouter,
         TcpServer, TcpService, TcpTls, TraefikConfig,
     },
-    DbConn,
+    DbConn, ACME_PATH,
 };
 
 #[derive(Serialize, Queryable, Insertable, AsChangeset, FromForm, Clone, Debug)]
@@ -140,10 +140,7 @@ impl TlsRoute {
                     let acme_router_name =
                         format!("gui-tls-{}-{}-acme", route.id.unwrap(), route.name);
 
-                    let acme_rule = format!(
-                        "({} && PathPrefix(`/.well-known/acme-challenge/`))",
-                        http_host_rule
-                    );
+                    let acme_rule = format!("({} && PathPrefix(`{}`))", http_host_rule, ACME_PATH);
 
                     config.http.routers.insert(
                         acme_router_name.clone(),

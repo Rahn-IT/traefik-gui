@@ -22,6 +22,7 @@
                     <th><label for="prefix">Path</label></th>
                     <th><label for="target">Target</label></th>
                     <th><label for="https_redirect">HTTPS Redirect</label></th>
+                    <th><label for="allow_http_acme">Allow HTTP ACME</label></th>
                     <td></td>
                 </tr>
                 <tr>
@@ -32,6 +33,7 @@
                     <td><input type="text" id="prefix" name="prefix" ></td>
                     <td><input type="text" id="target" name="target"  required></td>
                     <td><input type="checkbox" id="https_redirect" name="https_redirect" class="toggle"></td>
+                    <td><input type="checkbox" id="allow_http_acme" name="allow_http_acme" class="toggle"></td>
                     <td>
                         <input class="btn" type="submit" value="Add">
                     </td>
@@ -69,6 +71,7 @@
                         <td><input type="text" id="prefix" name="prefix" value="{{ route.prefix }}"></td>
                         <td><input type="text" id="target" name="target" value="{{ route.target }}" required></td>
                         <td><input type="checkbox" id="https_redirect" name="https_redirect" class="toggle" {% if route.https_redirect %}checked{% endif %}></td>
+                        <td><input type="checkbox" id="allow_http_acme" name="allow_http_acme" class="toggle" {% if route.allow_http_acme %}checked{% endif %}></td>
                         <td>
                             <div class="actions">
                                 <div>
@@ -94,6 +97,7 @@
                         <td>{{ route.prefix }}</td>
                         <td>{{ route.target }}</td>
                         <td>{% if route.https_redirect %}✅{% else %}❌{% endif %}</td>
+                        <td>{% if route.allow_http_acme %}✅{% else %}❌{% endif %}</td>
                         <td>
                             <div class="actions">
                                 <div>

@@ -13,7 +13,7 @@ use crate::{
     export_traefik_config,
     schema::https_routes,
     traefik::{HttpConfig, HttpLoadBalancer, HttpRouter, HttpServer, HttpService, HttpTls},
-    DbConn,
+    DbConn, ACME_PATH,
 };
 
 #[derive(Serialize, Queryable, Insertable, AsChangeset, FromForm, Clone, Debug)]
@@ -30,6 +30,7 @@ pub struct HttpsRoute {
     pub host: String,
     pub prefix: Option<String>,
     pub https_redirect: bool,
+    pub allow_http_acme: bool,
 }
 
 impl HttpsRoute {
@@ -107,15 +108,17 @@ impl HttpsRoute {
                 route.cleanup();
                 let router_name = format!("gui-https-{}-{}", route.id.unwrap(), route.name);
 
-                let mut host_rule = if route.host_regex {
+                let mut base_rule = if route.host_regex {
                     format!("HostRegexp(`{}`)", route.host)
                 } else {
                     format!("Host(`{}`)", route.host)
                 };
 
-                if let Some(prefix) = route.prefix {
-                    host_rule = format!("({} && PathPrefix(`{}`))", host_rule, prefix);
-                }
+                let host_rule = if let Some(prefix) = route.prefix {
+                    format!("({} && PathPrefix(`{}`))", base_rule, prefix)
+                } else {
+                    base_rule.clone()
+                };
 
                 if route.https_redirect {
                     let redirect_router_name = format!("{}-redirect", router_name);
@@ -127,6 +130,22 @@ impl HttpsRoute {
                             service: "noop@internal".into(),
                             priority: route.priority,
                             middlewares: vec!["https-redirect".into()],
+                            tls: None,
+                        },
+                    );
+                }
+
+                if route.allow_http_acme {
+                    let acme_router_name = format!("{}-acme", router_name);
+                    let acme_rule = format!("({} && PathPrefix(`{}`))", base_rule, ACME_PATH);
+
+                    traefik_config.routers.insert(
+                        acme_router_name,
+                        HttpRouter {
+                            rule: acme_rule,
+                            service: router_name.clone(),
+                            priority: route.priority,
+                            middlewares: Vec::new(),
                             tls: None,
                         },
                     );
