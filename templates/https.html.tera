@@ -101,10 +101,10 @@
                         <td>
                             <div class="actions">
                                 <div>
-                                    <a href="/http?edit={{ route.id }}">✏️</a>
+                                    <a href="/https?edit={{ route.id }}">✏️</a>
                                     <span class="tooltip">Edit</span>
                                 </div>
-                                <form action="/http/{{ route.id }}/enable" method="post">
+                                <form action="/https/{{ route.id }}/enable" method="post">
                                     {% if route.enabled %}
                                         <input type="hidden" name="enabled" value="false">
                                         <input type="submit" value="💤">
@@ -119,7 +119,7 @@
                                     <input type="submit" value="🔓">
                                     <span class="tooltip">Convert to HTTP</span>
                                 </form>
-                                <form action="/http/{{ route.id }}/delete" method="post" onsubmit="return confirm('Are you sure you want to delete this route?')">
+                                <form action="/https/{{ route.id }}/delete" method="post" onsubmit="return confirm('Are you sure you want to delete this route?')">
                                     <input type="hidden" name="confirm" value="true">
                                     <input type="submit" value="🗑️">
                                     <span class="tooltip">Delete</span>
