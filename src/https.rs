@@ -1,4 +1,5 @@
 use diesel::{ExpressionMethods, QueryDsl, QueryResult, RunQueryDsl};
+use itertools::Itertools;
 use rocket::{
     form::Form,
     request::FlashMessage,
@@ -11,7 +12,8 @@ use serde::Serialize;
 use crate::{
     config::{Config, ConfigState},
     export_traefik_config,
-    schema::https_routes,
+    http::HttpRoute,
+    schema::https_routes::{self, dsl},
     traefik::{HttpConfig, HttpLoadBalancer, HttpRouter, HttpServer, HttpService, HttpTls},
     DbConn, ACME_PATH,
 };
@@ -41,6 +43,11 @@ impl HttpsRoute {
 
     pub async fn all(conn: &DbConn) -> QueryResult<Vec<HttpsRoute>> {
         conn.run(|c| https_routes::table.load::<HttpsRoute>(c))
+            .await
+    }
+
+    pub async fn get(id: i32, conn: &DbConn) -> QueryResult<HttpsRoute> {
+        conn.run(move |c| https_routes::table.filter(dsl::id.eq(id)).first(c))
             .await
     }
 
@@ -109,9 +116,16 @@ impl HttpsRoute {
                 let router_name = format!("gui-https-{}-{}", route.id.unwrap(), route.name);
 
                 let base_rule = if route.host_regex {
-                    format!("HostRegexp(`{}`)", route.host)
+                    format!("HostRegexp(`{}`)", route.host.trim())
                 } else {
-                    format!("Host(`{}`)", route.host)
+                    let hosts = route
+                        .host
+                        .split(',')
+                        .map(str::trim)
+                        .map(|host| format!("Host(`{}`)", host))
+                        .join(" && ");
+
+                    format!("( {} )", hosts)
                 };
 
                 let host_rule = if let Some(prefix) = route.prefix {
@@ -280,5 +294,44 @@ pub async fn delete(
         }
     } else {
         Flash::error(Redirect::to("/https"), "Delete cancelled")
+    }
+}
+
+#[post("/https/<id>/to_http", data = "<confirm>")]
+pub async fn to_http(
+    id: i32,
+    confirm: Form<bool>,
+    conn: DbConn,
+    config: &State<ConfigState>,
+) -> Flash<Redirect> {
+    if confirm.into_inner() {
+        match HttpsRoute::get(id, &conn).await {
+            Ok(route) => {
+                let new_route = HttpRoute {
+                    id: None,
+                    enabled: route.enabled,
+                    host: route.host,
+                    host_regex: route.host_regex,
+                    name: route.name,
+                    prefix: route.prefix,
+                    priority: route.priority,
+                    target: route.target,
+                };
+
+                if let Err(e) = HttpRoute::insert(new_route, &conn).await {
+                    return Flash::error(Redirect::to("/https"), e.to_string());
+                }
+
+                if let Err(e) = HttpsRoute::delete(id, &conn).await {
+                    return Flash::error(Redirect::to("/https"), e.to_string());
+                }
+
+                export_traefik_config(&conn, &config.config()).await;
+                Flash::success(Redirect::to("/http"), "Route converted")
+            }
+            Err(err) => Flash::error(Redirect::to("/https"), err.to_string()),
+        }
+    } else {
+        Flash::error(Redirect::to("/https"), "Convertion cancelled")
     }
 }

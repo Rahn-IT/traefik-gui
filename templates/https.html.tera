@@ -116,6 +116,7 @@
                                     {% endif %}
                                 </form>
                                 <form action="/https/{{ route.id }}/to_http" method="post">
+                                    <input type="hidden" name="confirm" value="true">
                                     <input type="submit" value="🔓">
                                     <span class="tooltip">Convert to HTTP</span>
                                 </form>

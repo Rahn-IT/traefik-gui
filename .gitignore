@@ -1,4 +1,4 @@
 /target
 /db/db.sqlite*
-/db/config.yamml
+/db/config.yaml
 /traefik

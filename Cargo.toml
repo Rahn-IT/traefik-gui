@@ -13,3 +13,4 @@ serde = { version = "1.0.216", features = ["derive"] }
 serde_yaml = "0.9.34"
 rusqlite = { version = "0.32", features = ["bundled"] }
 thiserror = "2.0.9"
+itertools = "0.14.0"
