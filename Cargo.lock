@@ -2168,7 +2168,7 @@ dependencies = [
 
 [[package]]
 name = "traefik-gui"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "diesel",
  "diesel_migrations",
