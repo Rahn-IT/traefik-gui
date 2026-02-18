@@ -8,25 +8,26 @@ use rocket::{
     Build, Rocket, State,
 };
 use rocket_dyn_templates::Template;
+use serde::Deserialize;
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 
 #[macro_use]
 extern crate rocket;
-#[macro_use]
-extern crate rocket_sync_db_pools;
-#[macro_use]
-extern crate diesel;
 
 pub mod config;
 mod http;
 mod https;
-mod schema;
 mod tls;
 mod traefik;
 
+pub type DbPool = SqlitePool;
+
 const ACME_PATH: &str = "/.well-known/acme-challenge/";
 
-#[database("sqlite_database")]
-pub struct DbConn(diesel::SqliteConnection);
+#[derive(Deserialize)]
+struct DbConfig {
+    url: String,
+}
 
 #[launch]
 async fn rocket() -> _ {
@@ -59,8 +60,7 @@ async fn rocket() -> _ {
         )
         .mount("/static", FileServer::from("templates/static"))
         .attach(Template::fairing())
-        .attach(DbConn::fairing())
-        .attach(AdHoc::on_ignite("Run Migrations", run_migrations))
+        .attach(AdHoc::on_ignite("Init Database", init_database))
         .attach(AdHoc::on_ignite(
             "Export Traefik Config",
             initialize_traefik_config,
@@ -68,21 +68,29 @@ async fn rocket() -> _ {
         .manage(config::ConfigState::load().unwrap())
 }
 
-async fn run_migrations(rocket: Rocket<Build>) -> Rocket<Build> {
-    use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+async fn init_database(rocket: Rocket<Build>) -> Rocket<Build> {
+    let db_config: DbConfig = rocket
+        .figment()
+        .extract_inner("databases.sqlite_database")
+        .expect("sqlite_database config");
 
-    const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
+    let database_url = if db_config.url.starts_with("sqlite:") {
+        db_config.url
+    } else {
+        format!("sqlite://{}", db_config.url)
+    };
 
-    DbConn::get_one(&rocket)
+    let pool = SqlitePoolOptions::new()
+        .connect(&database_url)
         .await
-        .expect("database connection")
-        .run(|conn| {
-            conn.run_pending_migrations(MIGRATIONS)
-                .expect("diesel migrations");
-        })
-        .await;
+        .expect("database connection");
 
-    rocket
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("sqlx migrations");
+
+    rocket.manage(pool)
 }
 
 #[derive(Serialize)]
@@ -96,14 +104,14 @@ struct Index {
 
 #[get("/")]
 async fn index(
-    conn: DbConn,
+    db: &State<DbPool>,
     flash: Option<FlashMessage<'_>>,
     config: &State<ConfigState>,
 ) -> Template {
-    let http_count = http::HttpRoute::count(&conn).await.unwrap_or(0);
-    let https_count = https::HttpsRoute::count(&conn).await.unwrap_or(0);
-    let tls_count = tls::TlsRoute::count(&conn).await.unwrap_or(0);
-    let config = generate_traefik_config(&conn, &config.config()).await;
+    let http_count = http::HttpRoute::count(db.inner()).await.unwrap_or(0);
+    let https_count = https::HttpsRoute::count(db.inner()).await.unwrap_or(0);
+    let tls_count = tls::TlsRoute::count(db.inner()).await.unwrap_or(0);
+    let config = generate_traefik_config(db.inner(), &config.config()).await;
     Template::render(
         "index",
         &Index {
@@ -117,13 +125,13 @@ async fn index(
 }
 
 #[post("/redeploy")]
-async fn redeploy(conn: DbConn, config: &State<ConfigState>) -> Flash<Redirect> {
-    export_traefik_config(&conn, &config.config()).await;
+async fn redeploy(db: &State<DbPool>, config: &State<ConfigState>) -> Flash<Redirect> {
+    export_traefik_config(db.inner(), &config.config()).await;
 
     Flash::success(Redirect::to("/"), "Traefik config updated")
 }
 
-async fn generate_traefik_config(conn: &DbConn, config: &Config) -> String {
+async fn generate_traefik_config(conn: &DbPool, config: &Config) -> String {
     let mut traefik_config = tls::TlsRoute::generate_traefik_config(conn).await;
     let http = http::HttpRoute::generate_traefik_config(conn).await;
     let https = https::HttpsRoute::generate_traefik_config(conn, config).await;
@@ -133,23 +141,21 @@ async fn generate_traefik_config(conn: &DbConn, config: &Config) -> String {
 
     traefik_config.http.add_default_middlewares();
 
-    let serialized = serde_yaml::to_string(&traefik_config).unwrap();
-
-    serialized
+    serde_yaml::to_string(&traefik_config).unwrap()
 }
 
-pub async fn export_traefik_config(conn: &DbConn, config: &Config) {
+pub async fn export_traefik_config(conn: &DbPool, config: &Config) {
     let config = generate_traefik_config(conn, config).await;
 
     std::fs::write("./traefik/gui.yml", config).unwrap();
 }
 
 async fn initialize_traefik_config(rocket: Rocket<Build>) -> Rocket<Build> {
-    let conn = DbConn::get_one(&rocket).await.expect("database connection");
+    let db = rocket.state::<DbPool>().expect("database pool");
 
     let config = ConfigState::load().unwrap();
 
-    export_traefik_config(&conn, &config.config()).await;
+    export_traefik_config(db, &config.config()).await;
 
     rocket
 }

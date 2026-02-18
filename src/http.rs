@@ -1,4 +1,3 @@
-use diesel::{ExpressionMethods, QueryDsl, QueryResult, RunQueryDsl};
 use itertools::Itertools;
 use rocket::{
     form::Form,
@@ -8,19 +7,20 @@ use rocket::{
 };
 use rocket_dyn_templates::Template;
 use serde::Serialize;
+use sqlx;
 
 use crate::{
     config::ConfigState,
     export_traefik_config,
     https::HttpsRoute,
-    schema::http_routes::{self, dsl},
     traefik::{HttpConfig, HttpLoadBalancer, HttpRouter, HttpServer, HttpService},
-    DbConn,
+    DbPool,
 };
 
-#[derive(Serialize, Queryable, Insertable, AsChangeset, FromForm, Clone, Debug)]
+pub type DbResult<T> = Result<T, sqlx::Error>;
+
+#[derive(Serialize, FromForm, Clone, Debug)]
 #[serde(crate = "rocket::serde")]
-#[diesel(table_name = http_routes)]
 pub struct HttpRoute {
     #[serde(skip_deserializing)]
     pub id: Option<i32>,
@@ -34,58 +34,108 @@ pub struct HttpRoute {
 }
 
 impl HttpRoute {
-    pub async fn count(conn: &DbConn) -> QueryResult<i64> {
-        conn.run(|c| http_routes::table.count().first::<i64>(c))
-            .await
+    pub async fn count(conn: &DbPool) -> DbResult<i64> {
+        let count = sqlx::query_scalar!("SELECT COUNT(*) FROM http_routes")
+            .fetch_one(conn)
+            .await?;
+        Ok(count)
     }
 
-    pub async fn all(conn: &DbConn) -> QueryResult<Vec<HttpRoute>> {
-        conn.run(|c| http_routes::table.load::<HttpRoute>(c)).await
+    pub async fn all(conn: &DbPool) -> DbResult<Vec<HttpRoute>> {
+        sqlx::query_as!(
+            HttpRoute,
+            r#"
+            SELECT
+                id as "id?: i32",
+                enabled as "enabled: bool",
+                name,
+                priority as "priority?: i32",
+                target,
+                host_regex as "host_regex: bool",
+                host,
+                prefix as "prefix?: String"
+            FROM http_routes
+            "#
+        )
+        .fetch_all(conn)
+        .await
     }
 
-    pub async fn get(id: i32, conn: &DbConn) -> QueryResult<HttpRoute> {
-        conn.run(move |c| http_routes::table.filter(dsl::id.eq(id)).first(c))
-            .await
+    pub async fn get(id: i32, conn: &DbPool) -> DbResult<HttpRoute> {
+        sqlx::query_as!(
+            HttpRoute,
+            r#"
+            SELECT
+                id as "id?: i32",
+                enabled as "enabled: bool",
+                name,
+                priority as "priority?: i32",
+                target,
+                host_regex as "host_regex: bool",
+                host,
+                prefix as "prefix?: String"
+            FROM http_routes
+            WHERE id = ?
+            "#,
+            id
+        )
+        .fetch_one(conn)
+        .await
     }
 
-    pub async fn insert(mut route: HttpRoute, conn: &DbConn) -> QueryResult<usize> {
+    pub async fn insert(mut route: HttpRoute, conn: &DbPool) -> DbResult<u64> {
         route.cleanup();
-        conn.run(move |c| {
-            diesel::insert_into(http_routes::table)
-                .values(&route)
-                .execute(c)
-        })
-        .await
+        let result = sqlx::query!(
+            "INSERT INTO http_routes (enabled, name, priority, target, host_regex, host, prefix) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            route.enabled,
+            route.name,
+            route.priority,
+            route.target,
+            route.host_regex,
+            route.host,
+            route.prefix
+        )
+        .execute(conn)
+        .await?;
+
+        Ok(result.rows_affected())
     }
 
-    pub async fn update(id: i32, mut route: HttpRoute, conn: &DbConn) -> QueryResult<usize> {
+    pub async fn update(id: i32, mut route: HttpRoute, conn: &DbPool) -> DbResult<u64> {
         route.cleanup();
-        conn.run(move |c| {
-            diesel::update(http_routes::table)
-                .filter(http_routes::id.eq(id))
-                .set(&route)
-                .execute(c)
-        })
-        .await
+        let result = sqlx::query!(
+            "UPDATE http_routes SET enabled = ?, name = ?, priority = ?, target = ?, host_regex = ?, host = ?, prefix = ? WHERE id = ?",
+            route.enabled,
+            route.name,
+            route.priority,
+            route.target,
+            route.host_regex,
+            route.host,
+            route.prefix,
+            id
+        )
+        .execute(conn)
+        .await?;
+
+        Ok(result.rows_affected())
     }
 
-    pub async fn delete(id: i32, conn: &DbConn) -> QueryResult<usize> {
-        conn.run(move |c| {
-            diesel::delete(http_routes::table)
-                .filter(http_routes::id.eq(id))
-                .execute(c)
-        })
-        .await
+    pub async fn delete(id: i32, conn: &DbPool) -> DbResult<u64> {
+        let result = sqlx::query!("DELETE FROM http_routes WHERE id = ?", id)
+            .execute(conn)
+            .await?;
+        Ok(result.rows_affected())
     }
 
-    pub async fn enable(id: i32, enabled: bool, conn: &DbConn) -> QueryResult<usize> {
-        conn.run(move |c| {
-            diesel::update(http_routes::table)
-                .filter(http_routes::id.eq(id))
-                .set(http_routes::enabled.eq(enabled))
-                .execute(c)
-        })
-        .await
+    pub async fn enable(id: i32, enabled: bool, conn: &DbPool) -> DbResult<u64> {
+        let result = sqlx::query!(
+            "UPDATE http_routes SET enabled = ? WHERE id = ?",
+            enabled,
+            id
+        )
+        .execute(conn)
+        .await?;
+        Ok(result.rows_affected())
     }
 
     pub fn cleanup(&mut self) {
@@ -96,7 +146,7 @@ impl HttpRoute {
         }
     }
 
-    pub async fn generate_traefik_config(conn: &DbConn) -> HttpConfig {
+    pub async fn generate_traefik_config(conn: &DbPool) -> HttpConfig {
         let mut config = HttpConfig::new();
 
         let routes = HttpRoute::all(conn).await.unwrap();
@@ -138,7 +188,7 @@ impl HttpRoute {
                     router_name,
                     HttpService {
                         load_balancer: HttpLoadBalancer {
-                            servers: vec![{ HttpServer { url: route.target } }],
+                            servers: vec![HttpServer { url: route.target }],
                         },
                     },
                 );
@@ -157,7 +207,7 @@ struct Http {
 }
 
 impl Http {
-    pub async fn raw(conn: &DbConn, flash: Option<(String, String)>, edit: Option<i32>) -> Self {
+    pub async fn raw(conn: &DbPool, flash: Option<(String, String)>, edit: Option<i32>) -> Self {
         match HttpRoute::all(conn).await {
             Ok(routes) => Self {
                 flash,
@@ -177,25 +227,23 @@ impl Http {
 }
 
 #[get("/http?<edit>")]
-pub async fn index(edit: Option<i32>, flash: Option<FlashMessage<'_>>, conn: DbConn) -> Template {
+pub async fn index(edit: Option<i32>, flash: Option<FlashMessage<'_>>, db: &State<DbPool>) -> Template {
     let flash = flash.map(FlashMessage::into_inner);
-    Template::render("http", Http::raw(&conn, flash, edit).await)
+    Template::render("http", Http::raw(db.inner(), flash, edit).await)
 }
 
 #[post("/http", data = "<route_form>")]
 pub async fn create(
     route_form: Form<HttpRoute>,
-    conn: DbConn,
+    db: &State<DbPool>,
     config: &State<ConfigState>,
 ) -> Flash<Redirect> {
     let route = route_form.into_inner();
 
-    // TODO: validate
-
-    if let Err(e) = HttpRoute::insert(route, &conn).await {
+    if let Err(e) = HttpRoute::insert(route, db.inner()).await {
         Flash::error(Redirect::to("/http"), e.to_string())
     } else {
-        export_traefik_config(&conn, &config.config()).await;
+        export_traefik_config(db.inner(), &config.config()).await;
         Flash::success(Redirect::to("/http"), "Route created")
     }
 }
@@ -204,16 +252,14 @@ pub async fn create(
 pub async fn update(
     id: i32,
     route_form: Form<HttpRoute>,
-    conn: DbConn,
+    db: &State<DbPool>,
     config: &State<ConfigState>,
 ) -> Flash<Redirect> {
-    // TODO: validate
-
     let route = route_form.into_inner();
-    if let Err(e) = HttpRoute::update(id, route, &conn).await {
+    if let Err(e) = HttpRoute::update(id, route, db.inner()).await {
         Flash::error(Redirect::to("/http"), e.to_string())
     } else {
-        export_traefik_config(&conn, &config.config()).await;
+        export_traefik_config(db.inner(), &config.config()).await;
         Flash::success(Redirect::to("/http"), "Route updated")
     }
 }
@@ -222,14 +268,14 @@ pub async fn update(
 pub async fn enable(
     id: i32,
     enabled: Form<bool>,
-    conn: DbConn,
+    db: &State<DbPool>,
     config: &State<ConfigState>,
 ) -> Flash<Redirect> {
     let enabled = enabled.into_inner();
-    if let Err(e) = HttpRoute::enable(id, enabled, &conn).await {
+    if let Err(e) = HttpRoute::enable(id, enabled, db.inner()).await {
         Flash::error(Redirect::to("/http"), e.to_string())
     } else {
-        export_traefik_config(&conn, &config.config()).await;
+        export_traefik_config(db.inner(), &config.config()).await;
         Flash::success(Redirect::to("/http"), "Route updated")
     }
 }
@@ -238,14 +284,14 @@ pub async fn enable(
 pub async fn delete(
     id: i32,
     confirm: Form<bool>,
-    conn: DbConn,
+    db: &State<DbPool>,
     config: &State<ConfigState>,
 ) -> Flash<Redirect> {
     if confirm.into_inner() {
-        if let Err(e) = HttpRoute::delete(id, &conn).await {
+        if let Err(e) = HttpRoute::delete(id, db.inner()).await {
             Flash::error(Redirect::to("/http"), e.to_string())
         } else {
-            export_traefik_config(&conn, &config.config()).await;
+            export_traefik_config(db.inner(), &config.config()).await;
             Flash::success(Redirect::to("/http"), "Route deleted")
         }
     } else {
@@ -257,11 +303,11 @@ pub async fn delete(
 pub async fn to_https(
     id: i32,
     confirm: Form<bool>,
-    conn: DbConn,
+    db: &State<DbPool>,
     config: &State<ConfigState>,
 ) -> Flash<Redirect> {
     if confirm.into_inner() {
-        match HttpRoute::get(id, &conn).await {
+        match HttpRoute::get(id, db.inner()).await {
             Ok(route) => {
                 let new_route = HttpsRoute {
                     id: None,
@@ -276,15 +322,15 @@ pub async fn to_https(
                     allow_http_acme: false,
                 };
 
-                if let Err(e) = HttpsRoute::insert(new_route, &conn).await {
+                if let Err(e) = HttpsRoute::insert(new_route, db.inner()).await {
                     return Flash::error(Redirect::to("/http"), e.to_string());
                 }
 
-                if let Err(e) = HttpRoute::delete(id, &conn).await {
+                if let Err(e) = HttpRoute::delete(id, db.inner()).await {
                     return Flash::error(Redirect::to("/http"), e.to_string());
                 }
 
-                export_traefik_config(&conn, &config.config()).await;
+                export_traefik_config(db.inner(), &config.config()).await;
                 Flash::success(Redirect::to("/https"), "Route converted")
             }
             Err(err) => Flash::error(Redirect::to("/http"), err.to_string()),

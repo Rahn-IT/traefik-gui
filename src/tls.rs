@@ -1,4 +1,3 @@
-use diesel::{ExpressionMethods, QueryDsl, QueryResult, RunQueryDsl};
 use rocket::{
     form::Form,
     request::FlashMessage,
@@ -7,21 +6,22 @@ use rocket::{
 };
 use rocket_dyn_templates::Template;
 use serde::Serialize;
+use sqlx;
 
 use crate::{
     config::ConfigState,
     export_traefik_config,
-    schema::tls_routes,
     traefik::{
         HttpLoadBalancer, HttpRouter, HttpServer, HttpService, TcpLoadBalancer, TcpRouter,
         TcpServer, TcpService, TcpTls, TraefikConfig,
     },
-    DbConn, ACME_PATH,
+    DbPool, ACME_PATH,
 };
 
-#[derive(Serialize, Queryable, Insertable, AsChangeset, FromForm, Clone, Debug)]
+pub type DbResult<T> = Result<T, sqlx::Error>;
+
+#[derive(Serialize, FromForm, Clone, Debug)]
 #[serde(crate = "rocket::serde")]
-#[diesel(table_name = tls_routes)]
 pub struct TlsRoute {
     pub id: Option<i32>,
     pub enabled: bool,
@@ -35,54 +35,90 @@ pub struct TlsRoute {
 }
 
 impl TlsRoute {
-    pub async fn count(conn: &DbConn) -> QueryResult<i64> {
-        conn.run(|c| tls_routes::table.count().first::<i64>(c))
-            .await
+    pub async fn count(conn: &DbPool) -> DbResult<i64> {
+        let count = sqlx::query_scalar!("SELECT COUNT(*) FROM tls_routes")
+            .fetch_one(conn)
+            .await?;
+        Ok(count)
     }
 
-    pub async fn all(conn: &crate::DbConn) -> QueryResult<Vec<TlsRoute>> {
-        conn.run(|c| tls_routes::table.load::<TlsRoute>(c)).await
-    }
-
-    pub async fn insert(route: TlsRoute, conn: &DbConn) -> QueryResult<usize> {
-        conn.run(move |c| {
-            diesel::insert_into(tls_routes::table)
-                .values(&route)
-                .execute(c)
-        })
+    pub async fn all(conn: &DbPool) -> DbResult<Vec<TlsRoute>> {
+        sqlx::query_as!(
+            TlsRoute,
+            r#"
+            SELECT
+                id as "id?: i32",
+                enabled as "enabled: bool",
+                name,
+                priority as "priority?: i32",
+                target,
+                host_regex as "host_regex: bool",
+                host,
+                acme_http_passthrough as "acme_http_passthrough?: i32",
+                https_redirect as "https_redirect: bool"
+            FROM tls_routes
+            "#
+        )
+        .fetch_all(conn)
         .await
     }
 
-    pub async fn update(id: i32, route: TlsRoute, conn: &DbConn) -> QueryResult<usize> {
-        conn.run(move |c| {
-            diesel::update(tls_routes::table)
-                .filter(tls_routes::id.eq(id))
-                .set(&route)
-                .execute(c)
-        })
-        .await
+    pub async fn insert(route: TlsRoute, conn: &DbPool) -> DbResult<u64> {
+        let result = sqlx::query!(
+            "INSERT INTO tls_routes (enabled, name, priority, target, host_regex, host, acme_http_passthrough, https_redirect) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            route.enabled,
+            route.name,
+            route.priority,
+            route.target,
+            route.host_regex,
+            route.host,
+            route.acme_http_passthrough,
+            route.https_redirect
+        )
+        .execute(conn)
+        .await?;
+
+        Ok(result.rows_affected())
     }
 
-    pub async fn delete(id: i32, conn: &DbConn) -> QueryResult<usize> {
-        conn.run(move |c| {
-            diesel::delete(tls_routes::table)
-                .filter(tls_routes::id.eq(id))
-                .execute(c)
-        })
-        .await
+    pub async fn update(id: i32, route: TlsRoute, conn: &DbPool) -> DbResult<u64> {
+        let result = sqlx::query!(
+            "UPDATE tls_routes SET enabled = ?, name = ?, priority = ?, target = ?, host_regex = ?, host = ?, acme_http_passthrough = ?, https_redirect = ? WHERE id = ?",
+            route.enabled,
+            route.name,
+            route.priority,
+            route.target,
+            route.host_regex,
+            route.host,
+            route.acme_http_passthrough,
+            route.https_redirect,
+            id
+        )
+        .execute(conn)
+        .await?;
+
+        Ok(result.rows_affected())
     }
 
-    pub async fn enable(id: i32, enabled: bool, conn: &DbConn) -> QueryResult<usize> {
-        conn.run(move |c| {
-            diesel::update(tls_routes::table)
-                .filter(tls_routes::id.eq(id))
-                .set(tls_routes::enabled.eq(enabled))
-                .execute(c)
-        })
-        .await
+    pub async fn delete(id: i32, conn: &DbPool) -> DbResult<u64> {
+        let result = sqlx::query!("DELETE FROM tls_routes WHERE id = ?", id)
+            .execute(conn)
+            .await?;
+        Ok(result.rows_affected())
     }
 
-    pub async fn generate_traefik_config(conn: &DbConn) -> TraefikConfig {
+    pub async fn enable(id: i32, enabled: bool, conn: &DbPool) -> DbResult<u64> {
+        let result = sqlx::query!(
+            "UPDATE tls_routes SET enabled = ? WHERE id = ?",
+            enabled,
+            id
+        )
+        .execute(conn)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
+    pub async fn generate_traefik_config(conn: &DbPool) -> TraefikConfig {
         let routes = TlsRoute::all(conn).await.unwrap();
 
         let mut config = TraefikConfig::new();
@@ -113,7 +149,7 @@ impl TlsRoute {
                 );
 
                 let mut target = route.target.clone();
-                if target.rfind(':') == None {
+                if target.rfind(':').is_none() {
                     target.push_str(":443");
                 }
 
@@ -121,15 +157,12 @@ impl TlsRoute {
                     router_name.clone(),
                     TcpService {
                         load_balancer: TcpLoadBalancer {
-                            servers: vec![TcpServer {
-                                address: format!("{}", target),
-                            }],
+                            servers: vec![TcpServer { address: target }],
                         },
                     },
                 );
 
                 if let Some(acme_port) = route.acme_http_passthrough {
-                    // find the last colon in the target and replace the port after it with the acme port
                     let mut acme_target = route.target.clone();
                     if let Some(pos) = acme_target.rfind(':') {
                         acme_target.replace_range(pos.., &format!(":{}", acme_port));
@@ -145,7 +178,6 @@ impl TlsRoute {
                     config.http.routers.insert(
                         acme_router_name.clone(),
                         HttpRouter {
-                            // make sure the acme router has a higher priority than the https redirect
                             priority: route.priority.map(|p| p + 1),
                             service: acme_router_name.clone(),
                             rule: acme_rule,
@@ -195,7 +227,7 @@ struct Tls {
 }
 
 impl Tls {
-    pub async fn raw(conn: &DbConn, flash: Option<(String, String)>, edit: Option<i32>) -> Self {
+    pub async fn raw(conn: &DbPool, flash: Option<(String, String)>, edit: Option<i32>) -> Self {
         match TlsRoute::all(conn).await {
             Ok(routes) => Self {
                 flash,
@@ -215,23 +247,23 @@ impl Tls {
 }
 
 #[get("/tls?<edit>")]
-pub async fn index(edit: Option<i32>, flash: Option<FlashMessage<'_>>, conn: DbConn) -> Template {
+pub async fn index(edit: Option<i32>, flash: Option<FlashMessage<'_>>, db: &State<DbPool>) -> Template {
     let flash = flash.map(FlashMessage::into_inner);
-    Template::render("tls", Tls::raw(&conn, flash, edit).await)
+    Template::render("tls", Tls::raw(db.inner(), flash, edit).await)
 }
 
 #[post("/tls", data = "<route_form>")]
 pub async fn create(
     route_form: Form<TlsRoute>,
-    conn: DbConn,
+    db: &State<DbPool>,
     config: &State<ConfigState>,
 ) -> Flash<Redirect> {
     let route = route_form.into_inner();
-    if let Err(e) = TlsRoute::insert(route, &conn).await {
+    if let Err(e) = TlsRoute::insert(route, db.inner()).await {
         error!("DB error creating TLS route: {}", e);
         Flash::error(Redirect::to("/tls"), e.to_string())
     } else {
-        export_traefik_config(&conn, &config.config()).await;
+        export_traefik_config(db.inner(), &config.config()).await;
         Flash::success(
             Redirect::to("/tls"),
             "Route created successfully".to_string(),
@@ -243,15 +275,15 @@ pub async fn create(
 pub async fn update(
     id: i32,
     route_form: Form<TlsRoute>,
-    conn: DbConn,
+    db: &State<DbPool>,
     config: &State<ConfigState>,
 ) -> Flash<Redirect> {
     let route = route_form.into_inner();
-    if let Err(e) = TlsRoute::update(id, route, &conn).await {
+    if let Err(e) = TlsRoute::update(id, route, db.inner()).await {
         error!("DB error updating TLS route: {}", e);
         Flash::error(Redirect::to("/tls"), e.to_string())
     } else {
-        export_traefik_config(&conn, &config.config()).await;
+        export_traefik_config(db.inner(), &config.config()).await;
         Flash::success(
             Redirect::to("/tls"),
             "Route updated successfully".to_string(),
@@ -263,14 +295,14 @@ pub async fn update(
 pub async fn enable(
     id: i32,
     enabled: Form<bool>,
-    conn: DbConn,
+    db: &State<DbPool>,
     config: &State<ConfigState>,
 ) -> Flash<Redirect> {
-    if let Err(e) = TlsRoute::enable(id, enabled.into_inner(), &conn).await {
+    if let Err(e) = TlsRoute::enable(id, enabled.into_inner(), db.inner()).await {
         error!("DB error updating TLS route: {}", e);
         Flash::error(Redirect::to("/tls"), e.to_string())
     } else {
-        export_traefik_config(&conn, &config.config()).await;
+        export_traefik_config(db.inner(), &config.config()).await;
         Flash::success(
             Redirect::to("/tls"),
             "Route updated successfully".to_string(),
@@ -279,12 +311,12 @@ pub async fn enable(
 }
 
 #[post("/tls/<id>/delete")]
-pub async fn delete(id: i32, conn: DbConn, config: &State<ConfigState>) -> Flash<Redirect> {
-    if let Err(e) = TlsRoute::delete(id, &conn).await {
+pub async fn delete(id: i32, db: &State<DbPool>, config: &State<ConfigState>) -> Flash<Redirect> {
+    if let Err(e) = TlsRoute::delete(id, db.inner()).await {
         error!("DB error deleting TLS route: {}", e);
         Flash::error(Redirect::to("/tls"), e.to_string())
     } else {
-        export_traefik_config(&conn, &config.config()).await;
+        export_traefik_config(db.inner(), &config.config()).await;
         Flash::success(
             Redirect::to("/tls"),
             "Route deleted successfully".to_string(),
