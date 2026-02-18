@@ -65,6 +65,13 @@ async fn rocket() -> _ {
             "Export Traefik Config",
             initialize_traefik_config,
         ))
+        .attach(AdHoc::on_shutdown("Close Database", |rocket| {
+            Box::pin(async move {
+                if let Some(db) = rocket.state::<DbPool>() {
+                    db.close().await;
+                }
+            })
+        }))
         .manage(config::ConfigState::load().unwrap())
 }
 
